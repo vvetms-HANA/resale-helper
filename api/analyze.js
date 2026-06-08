@@ -116,7 +116,7 @@ ${isCard ? "5. 各カード単体相場 → 合計 → まとめ売り比較\n" 
 
   try {
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
+      model: "gemini-1.5-flash",
       systemInstruction,
       tools: [{ googleSearch: {} }],
       generationConfig: {
@@ -147,7 +147,7 @@ ${isCard ? "5. 各カード単体相場 → 合計 → まとめ売り比較\n" 
 
     return res.status(200).json({ ...parsed, _usage: usage });
   } catch (err) {
-    console.error(err);
+    console.error("Gemini error:", err.status, err.message);
     const msg = err.message || "";
     const friendly = msg.includes("API_KEY") || msg.includes("API key")
       ? "APIキーが無効です。VercelのGEMINI_API_KEY環境変数を確認してください。"
@@ -156,6 +156,6 @@ ${isCard ? "5. 各カード単体相場 → 合計 → まとめ売り比較\n" 
       : msg.includes("SAFETY")
       ? "安全フィルターに引っかかりました。別の写真やキーワードで試してください。"
       : msg;
-    return res.status(500).json({ error: friendly });
+    return res.status(500).json({ error: friendly, _raw: msg });
   }
 }
