@@ -170,7 +170,7 @@ JSONのみ返すこと（コードブロック不要）：
     model: "claude-sonnet-4-6",
     max_tokens: isQuick ? 1024 : 4096,
     system: systemPrompt,
-    tools: [{ type: "web_search_20260209", name: "web_search", max_uses: isQuick ? 2 : 10 }],
+    tools: [{ type: "web_search_20260209", name: "web_search", max_uses: isQuick ? 1 : 8 }],
     messages: [userMessage],
   }).finalMessage();
 

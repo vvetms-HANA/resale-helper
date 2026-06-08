@@ -404,6 +404,49 @@ textarea:focus, input:focus { border-color: var(--accent); }
   font-size: 0.85rem;
 }
 
+/* ジョブキュー */
+.job-item {
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.job-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--surface);
+  cursor: pointer;
+  user-select: none;
+}
+.job-status-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.job-status-dot.processing { background: var(--accent); animation: pulse 1s infinite; }
+.job-status-dot.done-go    { background: #4ade80; }
+.job-status-dot.done-stop  { background: #fbbf24; }
+.job-status-dot.error      { background: var(--danger); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.job-label { font-size: 0.82rem; font-weight: 600; flex: 1; }
+.job-mode-badge {
+  font-size: 0.6rem; padding: 2px 7px; border-radius: 8px; font-weight: 700;
+}
+.job-mode-badge.quick { background:#0f2a3a; color:#60a5fa; border:1px solid #1e4a6a; }
+.job-mode-badge.full  { background:#1e3a5f; color:#93c5fd; border:1px solid #2d5a9f; }
+.job-chevron { font-size: 0.6rem; color: var(--muted); transition: transform 0.2s; }
+.job-chevron.open { transform: rotate(90deg); }
+.job-body { display: none; padding: 0 4px 4px; background: var(--bg); }
+.job-body.open { display: block; }
+.job-spinner {
+  display: flex; align-items: center; justify-content: center;
+  padding: 28px; gap: 10px; color: var(--muted); font-size: 0.82rem;
+}
+.mini-spinner {
+  width: 18px; height: 18px;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+}
+
 /* 紫（トレカ） */
 .card-purple {
   background: #0d0520;
@@ -495,8 +538,8 @@ textarea:focus, input:focus { border-color: var(--accent); }
 
 </div><!-- /main -->
 
-<!-- 結果エリア（フォームの下につながる） -->
-<div class="main" id="resultArea" style="display:none; padding-top:0"></div>
+<!-- ジョブキュー -->
+<div class="main" id="jobQueue" style="padding-top:0; display:none"></div>
 
 <!-- ローディング -->
 <div class="loading-overlay" id="loadingOverlay">
@@ -506,10 +549,6 @@ textarea:focus, input:focus { border-color: var(--accent); }
 <!-- 固定ボタン -->
 <div class="bottom-bar">
   <div style="display:flex;gap:8px">
-    <button class="analyze-btn" id="clearBtn" onclick="clearAll()"
-      style="display:none;flex:0 0 52px;background:#1a2030;font-size:1.2rem;padding:0;border-radius:12px">
-      🗑
-    </button>
     <button class="analyze-btn" id="quickBtn" onclick="analyze('quick')"
       style="flex:1;background:linear-gradient(135deg,#1a3a5f,#0f2a3a);font-size:0.88rem">
       相場チェック
@@ -525,16 +564,14 @@ textarea:focus, input:focus { border-color: var(--accent); }
 // ── セッション使用量 ──
 let sessionCount = 0;
 let sessionCostYen = 0;
-// claude-sonnet-4-6: $3/1M input, $15/1M output (¥150/USD想定)
 const INPUT_YEN_PER_TOKEN  = 3 / 1e6 * 150;
 const OUTPUT_YEN_PER_TOKEN = 15 / 1e6 * 150;
 
 function addUsage(usage) {
   if (!usage) return;
   sessionCount++;
-  const cost = (usage.input_tokens || 0) * INPUT_YEN_PER_TOKEN
-             + (usage.output_tokens || 0) * OUTPUT_YEN_PER_TOKEN;
-  sessionCostYen += cost;
+  sessionCostYen += (usage.input_tokens || 0) * INPUT_YEN_PER_TOKEN
+                  + (usage.output_tokens || 0) * OUTPUT_YEN_PER_TOKEN;
   document.getElementById("usageBadge").style.display = "block";
   document.getElementById("usageCount").textContent = sessionCount;
   document.getElementById("usageCost").textContent = "¥" + sessionCostYen.toFixed(1);
@@ -552,36 +589,28 @@ document.getElementById("categoryRow").addEventListener("click", e => {
 
 // ── 任意フィールド開閉 ──
 function toggleOpt() {
-  const toggle = document.getElementById("optToggle");
-  const fields  = document.getElementById("optFields");
-  toggle.classList.toggle("open");
-  fields.classList.toggle("open");
+  document.getElementById("optToggle").classList.toggle("open");
+  document.getElementById("optFields").classList.toggle("open");
 }
 
 // ── 写真管理 ──
-let imageList = []; // 圧縮済み base64
+let imageList = [];
 
 document.getElementById("cameraInput").addEventListener("change", function () {
-  addFiles(Array.from(this.files));
-  this.value = "";
+  addFiles(Array.from(this.files)); this.value = "";
 });
 document.getElementById("albumInput").addEventListener("change", function () {
-  addFiles(Array.from(this.files));
-  this.value = "";
+  addFiles(Array.from(this.files)); this.value = "";
 });
 
 function addFiles(files) {
   const room = 10 - imageList.length;
   files.slice(0, room).forEach(f => {
     if (!f.type.startsWith("image/")) return;
-    compressImage(f).then(dataUrl => {
-      imageList.push(dataUrl);
-      renderThumbs();
-    });
+    compressImage(f).then(dataUrl => { imageList.push(dataUrl); renderThumbs(); });
   });
 }
 
-// Canvas で長辺1280px・JPEG品質0.75 に圧縮（AI分析には十分な解像度）
 function compressImage(file) {
   return new Promise(resolve => {
     const img = new Image();
@@ -603,258 +632,211 @@ function compressImage(file) {
   });
 }
 
-function removeImage(i) {
-  imageList.splice(i, 1);
-  renderThumbs();
-}
+function removeImage(i) { imageList.splice(i, 1); renderThumbs(); }
 
 function renderThumbs() {
   const grid = document.getElementById("thumbGrid");
   const cnt  = document.getElementById("photoCount");
   const btn  = document.getElementById("cameraBtn");
-
   if (imageList.length === 0) {
-    grid.innerHTML = "";
-    cnt.style.display = "none";
-    btn.classList.remove("has-photos");
-    return;
+    grid.innerHTML = ""; cnt.style.display = "none";
+    btn.classList.remove("has-photos"); return;
   }
-
   btn.classList.add("has-photos");
   cnt.style.display = "block";
   document.getElementById("photoNum").textContent = imageList.length;
-
-  // 合計サイズ表示（base64 → バイト換算: length * 0.75）
   const totalKB = Math.round(imageList.reduce((s, d) => s + d.length * 0.75, 0) / 1024);
   document.getElementById("photoSize").textContent =
     totalKB < 1024 ? `${totalKB} KB` : `${(totalKB / 1024).toFixed(1)} MB`;
-
   grid.innerHTML = imageList.map((src, i) => `
     <div class="thumb-item">
       <img src="${src}" alt="">
       <div class="thumb-num">${i + 1}</div>
       <button class="thumb-del" onclick="removeImage(${i})">✕</button>
-    </div>
-  `).join("");
+    </div>`).join("");
 }
 
-// ── 解析 ──
-async function analyze(mode = "full") {
+// ── ジョブキュー ──
+let jobs = [];
+let jobSeq = 0;
+
+function analyze(mode = "full") {
   const condition = document.getElementById("condition").value.trim();
   const keywords  = document.getElementById("keywords").value.trim();
-
   if (imageList.length === 0 && !condition && !keywords) {
-    alert("写真かキーワードを入力してください");
-    return;
+    alert("写真かキーワードを入力してください"); return;
   }
 
-  // ボタン無効化・ローディング表示
-  document.getElementById("quickBtn").disabled = true;
-  document.getElementById("fullBtn").disabled = true;
-  document.getElementById("resultArea").style.display = "none";
-  const overlay = document.getElementById("loadingOverlay");
-  overlay.classList.add("show");
+  // ジョブ作成
+  const id = ++jobSeq;
+  const label = keywords || condition || `写真 ${imageList.length}枚`;
+  const job = {
+    id, label, mode,
+    category: selectedCategory,
+    images: [...imageList],
+    condition, keywords,
+    status: "processing",
+    result: null, error: null,
+  };
+  jobs.unshift(job); // 新しいものを上に
 
+  // フォームをすぐリセット（次の商品を準備できる）
+  resetForm();
+  renderQueue();
+
+  // バックグラウンドで処理
+  runJob(job);
+}
+
+async function runJob(job) {
   try {
     const res = await fetch("/api/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        images: imageList,
-        category: selectedCategory,
-        condition,
-        keywords,
-        mode,
+        images: job.images,
+        category: job.category,
+        condition: job.condition,
+        keywords: job.keywords,
+        mode: job.mode,
       }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "エラーが発生しました");
+    if (!res.ok) throw new Error(data.error || "エラー");
     addUsage(data._usage);
-    renderResult(data);
+    job.status = "done";
+    job.result = data;
   } catch (e) {
-    const area = document.getElementById("resultArea");
-    area.style.display = "flex";
-    area.innerHTML = `<div class="error-card">エラー: ${escHtml(e.message)}</div>`;
-    area.scrollIntoView({ behavior: "smooth" });
-  } finally {
-    overlay.classList.remove("show");
-    document.getElementById("quickBtn").disabled = false;
-    document.getElementById("fullBtn").disabled = false;
+    job.status = "error";
+    job.error = e.message;
   }
+  renderQueue();
 }
 
-// ── 結果レンダリング ──
-function renderResult(d) {
-  const area = document.getElementById("resultArea");
-  area.style.display = "flex";
+function renderQueue() {
+  const qEl = document.getElementById("jobQueue");
+  if (jobs.length === 0) { qEl.style.display = "none"; return; }
+  qEl.style.display = "flex";
 
-  if (d.raw) {
-    area.innerHTML = `<div class="card"><div class="card-label">出力</div><div class="listing-text">${escHtml(d.raw)}</div></div>`;
-    area.scrollIntoView({ behavior: "smooth" });
-    return;
-  }
+  qEl.innerHTML = jobs.map(job => {
+    const dotClass = job.status === "processing" ? "processing"
+      : job.status === "error" ? "error"
+      : (job.result && job.result.should_list === false) ? "done-stop" : "done-go";
+    const statusLabel = job.status === "processing" ? "調査中..."
+      : job.status === "error" ? "エラー"
+      : (job.result && job.result.should_list === false) ? "見送り" : "出品OK";
+    const bodyHtml = job.status === "processing"
+      ? `<div class="job-body open" id="jbody-${job.id}">
+           <div class="job-spinner"><div class="mini-spinner"></div>解析中...</div>
+         </div>`
+      : job.status === "error"
+      ? `<div class="job-body open" id="jbody-${job.id}">
+           <div style="padding:14px"><div class="error-card">エラー: ${escHtml(job.error)}</div></div>
+         </div>`
+      : `<div class="job-body" id="jbody-${job.id}">
+           <div style="padding:4px;display:flex;flex-direction:column;gap:10px">
+             ${buildResultHtml(job.result, job.id)}
+           </div>
+         </div>`;
+    return `
+      <div class="job-item">
+        <div class="job-header" onclick="toggleJob(${job.id})">
+          <div class="job-status-dot ${dotClass}"></div>
+          <div class="job-label">${escHtml(job.label)}</div>
+          <div class="job-mode-badge ${job.mode}">${job.mode === "quick" ? "相場" : "全文"}</div>
+          <span style="font-size:0.7rem;color:var(--muted);white-space:nowrap">${statusLabel}</span>
+          <span class="job-chevron${job.status !== "processing" ? " open" : ""}" id="jchev-${job.id}">▶</span>
+        </div>
+        ${bodyHtml}
+      </div>`;
+  }).join("");
+}
 
-  // 画像読み取り情報チップ
+function toggleJob(id) {
+  const body  = document.getElementById(`jbody-${id}`);
+  const chev  = document.getElementById(`jchev-${id}`);
+  const job   = jobs.find(j => j.id === id);
+  if (!body || job.status === "processing") return;
+  body.classList.toggle("open");
+  chev.classList.toggle("open");
+}
+
+function buildResultHtml(d, jid) {
+  if (!d) return "";
+  if (d.raw) return `<div class="card"><div class="listing-text">${escHtml(d.raw)}</div></div>`;
+
   let infoChips = "";
   if (d.extracted_info) {
     const chips = Object.entries(d.extracted_info)
       .filter(([,v]) => v && v !== "null")
       .map(([k,v]) => `<div class="info-chip"><span class="cl">${escHtml(labelFor(k))}</span>${escHtml(v)}</div>`)
       .join("");
-    if (chips) infoChips = `
-      <div class="card">
-        <div class="card-label">読み取り情報</div>
-        <div class="chip-list">${chips}</div>
-      </div>`;
+    if (chips) infoChips = `<div class="card"><div class="card-label">読み取り情報</div><div class="chip-list">${chips}</div></div>`;
   }
 
-  // ── 非推奨の場合 ──
-  if (d.should_list === false) {
-    area.innerHTML = `
-      <div class="verdict-banner stop">
-        <div class="verdict-icon">⚠️</div>
-        <div>
-          <div class="verdict-title">出品は見送りを推奨</div>
-          <div class="verdict-body">${escHtml(d.not_recommended_reason || "")}</div>
-        </div>
-      </div>
-      ${infoChips}
-      ${d.improvement_tips ? `<div class="card">
-        <div class="card-label">改善・代替の提案</div>
-        <div class="info-text">${escHtml(d.improvement_tips)}</div>
-      </div>` : ""}
-    `;
-    area.scrollIntoView({ behavior: "smooth" });
-    return;
-  }
+  if (d.should_list === false) return `
+    <div class="verdict-banner stop">
+      <div class="verdict-icon">⚠️</div>
+      <div><div class="verdict-title">出品は見送りを推奨</div>
+      <div class="verdict-body">${escHtml(d.not_recommended_reason || "")}</div></div>
+    </div>
+    ${infoChips}
+    ${d.improvement_tips ? `<div class="card"><div class="card-label">改善提案</div><div class="info-text">${escHtml(d.improvement_tips)}</div></div>` : ""}`;
 
-  // ── クイックモード（相場チェックのみ）──
-  if (d.mode === "quick") {
-    area.innerHTML = `
-      <div class="verdict-banner go">
-        <div class="verdict-icon">✅</div>
-        <div>
-          <div class="verdict-title">出品を推奨</div>
-          <div class="verdict-body">${escHtml(d.product_name || "")}${d.detected_category ? "\nカテゴリ: " + escHtml(d.detected_category) : ""}${d.recommended_platform ? "\n" + escHtml(d.recommended_platform) : ""}</div>
-        </div>
-      </div>
-      ${d.high_value_warning ? `<div class="high-warn"><div class="hw-title">⚠ 高額の可能性あり</div><div class="hw-body">${escHtml(d.high_value_warning)}</div></div>` : ""}
-      ${infoChips}
-      ${d.buyer_appeal_points ? `<div class="appeal-card"><div class="ac-title">買い手が刺さるポイント</div><div class="ac-body">${escHtml(d.buyer_appeal_points)}</div></div>` : ""}
-      <div class="card">
-        <div class="card-label">推奨価格</div>
-        <div class="price-row">
-          <div class="price-box"><div class="price-label">メルカリ</div><div class="price-val">&yen;${num(d.mercari_price)}</div></div>
-          <div class="price-box"><div class="price-label">ヤフオク 開始</div><div class="price-val">&yen;${num(d.yahoo_start_price)}</div></div>
-        </div>
-      </div>
-      <div class="card"><div class="card-label">相場・市場背景</div><div class="info-text">${escHtml(d.market_research || "—")}</div></div>
-      ${d.profit_tips ? `<div class="card"><div class="card-label">アドバイス</div><div class="info-text">${escHtml(d.profit_tips)}</div></div>` : ""}
-      <button class="analyze-btn" onclick="analyze('full')" style="margin-top:4px;font-size:0.9rem">
-        出品文まで作る →
-      </button>
-    `;
-    area.scrollIntoView({ behavior: "smooth" });
-    document.getElementById("clearBtn").style.display = "block";
-    return;
-  }
+  const priceCard = `<div class="card"><div class="card-label">推奨価格</div>
+    <div class="price-row">
+      <div class="price-box"><div class="price-label">メルカリ</div><div class="price-val">&yen;${num(d.mercari_price)}</div></div>
+      <div class="price-box"><div class="price-label">ヤフオク 開始</div><div class="price-val">&yen;${num(d.yahoo_start_price)}</div></div>
+    </div></div>`;
 
-  // ── フルモード（出品文まで）──
-  const bodyText    = d.description || "";
-  const mercariText = `${d.mercari_title || ""}\n\n${bodyText}\n\n#${(d.product_name || "").replace(/\s+/g,"")}`;
-  const yahooText   = `${d.yahoo_title  || ""}\n\n${bodyText}`;
+  const verdictBody = `${escHtml(d.product_name || "")}${d.detected_category ? "\nカテゴリ: " + escHtml(d.detected_category) : ""}${d.recommended_platform ? "\n" + escHtml(d.recommended_platform) : ""}`;
 
-  area.innerHTML = `
-    <!-- 判定バナー -->
+  if (d.mode === "quick") return `
     <div class="verdict-banner go">
       <div class="verdict-icon">✅</div>
-      <div>
-        <div class="verdict-title">出品を推奨</div>
-        <div class="verdict-body">${escHtml(d.product_name || "")}${d.detected_category ? "\nカテゴリ: " + escHtml(d.detected_category) : ""}${d.recommended_platform ? "\n" + escHtml(d.recommended_platform) : ""}</div>
-      </div>
+      <div><div class="verdict-title">出品を推奨</div><div class="verdict-body">${verdictBody}</div></div>
     </div>
-
-    <!-- 高額警告 -->
-    ${d.high_value_warning ? `<div class="high-warn">
-      <div class="hw-title">⚠ 高額の可能性あり</div>
-      <div class="hw-body">${escHtml(d.high_value_warning)}</div>
-    </div>` : ""}
-
-    <!-- 読み取り情報 -->
+    ${d.high_value_warning ? `<div class="high-warn"><div class="hw-title">⚠ 高額の可能性あり</div><div class="hw-body">${escHtml(d.high_value_warning)}</div></div>` : ""}
     ${infoChips}
+    ${d.buyer_appeal_points ? `<div class="appeal-card"><div class="ac-title">買い手が刺さるポイント</div><div class="ac-body">${escHtml(d.buyer_appeal_points)}</div></div>` : ""}
+    ${priceCard}
+    <div class="card"><div class="card-label">相場・市場背景</div><div class="info-text">${escHtml(d.market_research || "—")}</div></div>
+    ${d.profit_tips ? `<div class="card"><div class="card-label">アドバイス</div><div class="info-text">${escHtml(d.profit_tips)}</div></div>` : ""}`;
 
-    <!-- 買い手訴求ポイント -->
-    ${d.buyer_appeal_points ? `<div class="appeal-card">
-      <div class="ac-title">買い手が刺さるポイント</div>
-      <div class="ac-body">${escHtml(d.buyer_appeal_points)}</div>
-    </div>` : ""}
-
-    <!-- トレカ単体相場 -->
-    ${d.card_breakdown && d.card_breakdown !== "null" ? `<div class="card-purple">
-      <div class="cp-title">カード単体相場・まとめ比較</div>
-      <div class="cp-body">${escHtml(d.card_breakdown)}</div>
-    </div>` : ""}
-
-    <!-- 価格 -->
-    <div class="card">
-      <div class="card-label">推奨価格</div>
-      <div class="price-row">
-        <div class="price-box">
-          <div class="price-label">メルカリ</div>
-          <div class="price-val">&yen;${num(d.mercari_price)}</div>
-        </div>
-        <div class="price-box">
-          <div class="price-label">ヤフオク 開始</div>
-          <div class="price-val">&yen;${num(d.yahoo_start_price)}</div>
-        </div>
-      </div>
+  // フルモード
+  const bodyText    = d.description || "";
+  const mId = `m${jid}`, yId = `y${jid}`;
+  const mercariText = `${d.mercari_title || ""}\n\n${bodyText}\n\n#${(d.product_name || "").replace(/\s+/g,"")}`;
+  const yahooText   = `${d.yahoo_title  || ""}\n\n${bodyText}`;
+  return `
+    <div class="verdict-banner go">
+      <div class="verdict-icon">✅</div>
+      <div><div class="verdict-title">出品を推奨</div><div class="verdict-body">${verdictBody}</div></div>
     </div>
-
-    <!-- 相場調査 -->
-    <div class="card">
-      <div class="card-label">相場・市場背景</div>
-      <div class="info-text">${escHtml(d.market_research || "—")}</div>
+    ${d.high_value_warning ? `<div class="high-warn"><div class="hw-title">⚠ 高額の可能性あり</div><div class="hw-body">${escHtml(d.high_value_warning)}</div></div>` : ""}
+    ${infoChips}
+    ${d.buyer_appeal_points ? `<div class="appeal-card"><div class="ac-title">買い手が刺さるポイント</div><div class="ac-body">${escHtml(d.buyer_appeal_points)}</div></div>` : ""}
+    ${d.card_breakdown && d.card_breakdown !== "null" ? `<div class="card-purple"><div class="cp-title">カード単体相場</div><div class="cp-body">${escHtml(d.card_breakdown)}</div></div>` : ""}
+    ${priceCard}
+    <div class="card"><div class="card-label">相場・市場背景</div><div class="info-text">${escHtml(d.market_research || "—")}</div></div>
+    <div class="card"><div class="card-label">メルカリ用</div>
+      <div class="listing-text" id="${mId}">${escHtml(mercariText)}</div>
+      <button class="copy-btn" id="cb${mId}" onclick="copyText('${mId}','cb${mId}','コピー（メルカリ）')">コピー（メルカリ）</button>
     </div>
-
-    <!-- 出品文（共通本文） -->
-    <div class="card">
-      <div class="card-label">出品文</div>
-      <div class="listing-text" id="bodyText">${escHtml(bodyText)}</div>
+    <div class="card"><div class="card-label">ヤフオク用</div>
+      <div class="listing-text" id="${yId}">${escHtml(yahooText)}</div>
+      <button class="copy-btn" id="cb${yId}" onclick="copyText('${yId}','cb${yId}','コピー（ヤフオク）')">コピー（ヤフオク）</button>
     </div>
-
-    <!-- メルカリ -->
-    <div class="card">
-      <div class="card-label">メルカリ用（タイトル＋本文＋タグ）</div>
-      <div class="listing-text" id="mercariText">${escHtml(mercariText)}</div>
-      <button class="copy-btn" id="copyM" onclick="copyText('mercariText','copyM','コピー（メルカリ）')">コピー（メルカリ）</button>
-    </div>
-
-    <!-- ヤフオク -->
-    <div class="card">
-      <div class="card-label">ヤフオク用（タイトル＋本文）</div>
-      <div class="listing-text" id="yahooText">${escHtml(yahooText)}</div>
-      <button class="copy-btn" id="copyY" onclick="copyText('yahooText','copyY','コピー（ヤフオク）')">コピー（ヤフオク）</button>
-    </div>
-
-    <!-- アドバイス -->
-    ${d.profit_tips ? `<div class="card">
-      <div class="card-label">出品のコツ</div>
-      <div class="info-text">${escHtml(d.profit_tips)}</div>
-    </div>` : ""}
-  `;
-
-  area.scrollIntoView({ behavior: "smooth" });
-  document.getElementById("clearBtn").style.display = "block";
+    ${d.profit_tips ? `<div class="card"><div class="card-label">出品のコツ</div><div class="info-text">${escHtml(d.profit_tips)}</div></div>` : ""}`;
 }
 
 // ── ユーティリティ ──
 function labelFor(k) {
-  return {
-    model_number:"型番", brand:"ブランド", price_tag:"タグ価格",
+  return { model_number:"型番", brand:"ブランド", price_tag:"タグ価格",
     color:"カラー", size:"サイズ", condition_from_image:"状態",
     serial_number:"S/N", manufacture_date:"製造年", accessories:"付属品",
-    lego_set_number:"セット番号", lego_theme:"テーマ",
-    lego_minifigs:"ミニフィグ", lego_completeness:"完品度", lego_box_manual:"箱/説明書",
+    lego_set_number:"セット番号", lego_theme:"テーマ", lego_minifigs:"ミニフィグ",
+    lego_completeness:"完品度", lego_box_manual:"箱/説明書",
     card_names:"カード名", rarity:"レアリティ", set_name:"セット名", special_marks:"特記",
   }[k] || k;
 }
@@ -863,33 +845,32 @@ function copyText(textId, btnId, label) {
   const text = document.getElementById(textId).textContent;
   navigator.clipboard.writeText(text).then(() => {
     const btn = document.getElementById(btnId);
-    btn.textContent = "コピーしました！";
-    btn.classList.add("copied");
+    btn.textContent = "コピーしました！"; btn.classList.add("copied");
     setTimeout(() => { btn.textContent = label; btn.classList.remove("copied"); }, 2000);
   });
 }
 
-function clearAll() {
+function resetForm() {
   imageList = [];
   renderThumbs();
   document.getElementById("condition").value = "";
   document.getElementById("keywords").value = "";
-  document.getElementById("resultArea").style.display = "none";
-  document.getElementById("resultArea").innerHTML = "";
-  document.getElementById("clearBtn").style.display = "none";
-  document.getElementById("quickBtn").disabled = false;
-  document.getElementById("fullBtn").disabled = false;
   document.querySelectorAll("#categoryRow .chip").forEach(c => c.classList.remove("active"));
   document.querySelector('#categoryRow .chip[data-val="auto"]').classList.add("active");
   selectedCategory = "auto";
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+function clearAll() {
+  jobs = [];
+  renderQueue();
+  resetForm();
+}
+
 function num(n) { return n ? Number(n).toLocaleString() : "—"; }
 
 function escHtml(s) {
-  return String(s)
-    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")
     .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 </script>
