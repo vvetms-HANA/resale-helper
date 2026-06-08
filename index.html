@@ -468,7 +468,7 @@ textarea:focus, input:focus { border-color: var(--accent); }
   </div>
   <div class="header-right">
     <div class="usage-badge" id="usageBadge" style="display:none">
-      今回 <span class="ub-val" id="usageCount">0</span>回 / 約<span class="ub-val" id="usageCost">¥0</span>
+      <span class="ub-val" id="usageCount">0</span>回 / <span class="ub-val" id="usageCost">—</span>
     </div>
     <button class="reset-btn" onclick="clearAll()">リセット</button>
   </div>
@@ -563,18 +563,13 @@ textarea:focus, input:focus { border-color: var(--accent); }
 <script>
 // ── セッション使用量 ──
 let sessionCount = 0;
-let sessionCostYen = 0;
-const INPUT_YEN_PER_TOKEN  = 3 / 1e6 * 150;
-const OUTPUT_YEN_PER_TOKEN = 15 / 1e6 * 150;
 
 function addUsage(usage) {
-  if (!usage) return;
   sessionCount++;
-  sessionCostYen += (usage.input_tokens || 0) * INPUT_YEN_PER_TOKEN
-                  + (usage.output_tokens || 0) * OUTPUT_YEN_PER_TOKEN;
+  const total = (usage && (usage.totalTokenCount || usage.total_token_count)) || 0;
   document.getElementById("usageBadge").style.display = "block";
   document.getElementById("usageCount").textContent = sessionCount;
-  document.getElementById("usageCost").textContent = "¥" + sessionCostYen.toFixed(1);
+  document.getElementById("usageCost").textContent = total ? `${(total/1000).toFixed(1)}K tok` : "無料";
 }
 
 // ── カテゴリ選択 ──
