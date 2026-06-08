@@ -197,7 +197,10 @@ JSONのみ返すこと（コードブロック不要）：
       parsed = { raw: textBlock.text };
     }
 
-    return res.status(200).json(parsed);
+    return res.status(200).json({
+      ...parsed,
+      _usage: response.usage,
+    });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: err.message });

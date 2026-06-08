@@ -48,6 +48,35 @@ html, body {
 .app-header h1 { font-size: 1rem; font-weight: 700; letter-spacing: -0.01em; }
 .app-header .sub { font-size: 0.65rem; color: var(--muted); }
 
+.header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+.usage-badge {
+  font-size: 0.6rem;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+.usage-badge .ub-val { color: #93c5fd; font-weight: 600; }
+.reset-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.reset-btn:active { background: #1a2030; color: var(--text); }
+
 /* ── メインコンテンツ ── */
 .main {
   padding: 16px;
@@ -397,6 +426,12 @@ textarea:focus, input:focus { border-color: var(--accent); }
     <h1>仕入れ判定</h1>
     <div class="sub">メルカリ・ヤフオク 出品サポート</div>
   </div>
+  <div class="header-right">
+    <div class="usage-badge" id="usageBadge" style="display:none">
+      今回 <span class="ub-val" id="usageCount">0</span>回 / 約<span class="ub-val" id="usageCost">¥0</span>
+    </div>
+    <button class="reset-btn" onclick="clearAll()">リセット</button>
+  </div>
 </header>
 
 <!-- メインフォーム -->
@@ -495,6 +530,24 @@ textarea:focus, input:focus { border-color: var(--accent); }
 </div>
 
 <script>
+// ── セッション使用量 ──
+let sessionCount = 0;
+let sessionCostYen = 0;
+// claude-sonnet-4-6: $3/1M input, $15/1M output (¥150/USD想定)
+const INPUT_YEN_PER_TOKEN  = 3 / 1e6 * 150;
+const OUTPUT_YEN_PER_TOKEN = 15 / 1e6 * 150;
+
+function addUsage(usage) {
+  if (!usage) return;
+  sessionCount++;
+  const cost = (usage.input_tokens || 0) * INPUT_YEN_PER_TOKEN
+             + (usage.output_tokens || 0) * OUTPUT_YEN_PER_TOKEN;
+  sessionCostYen += cost;
+  document.getElementById("usageBadge").style.display = "block";
+  document.getElementById("usageCount").textContent = sessionCount;
+  document.getElementById("usageCost").textContent = "¥" + sessionCostYen.toFixed(1);
+}
+
 // ── カテゴリ選択 ──
 let selectedCategory = "auto";
 document.getElementById("categoryRow").addEventListener("click", e => {
@@ -634,6 +687,7 @@ async function analyze(mode = "full") {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "エラーが発生しました");
+    addUsage(data._usage);
     renderResult(data);
   } catch (e) {
     const area = document.getElementById("resultArea");
