@@ -102,135 +102,67 @@ Prize/プライズ/非売品/NOT FOR SALE/大会限定/配布限定/Trophy/Champ
       ...imageContent,
       {
         type: "text",
-        text: `カテゴリ: ${categoryLabel}
-状態・説明（入力）: ${condition || "未記載"}
-キーワード（入力）: ${keywords || "なし"}
+        text: isQuick ? `
+【相場チェックモード】
+出品文・タイトルは生成しない。相場調査と出品判定のみ行う。
+
+カテゴリ: ${categoryLabel}
+状態・説明: ${condition || "未記載"}
+キーワード: ${keywords || "なし"}
 写真: ${imageList.length}枚
 
-${isAuto ? `【STEP 0: カテゴリ自動判定】
-写真・キーワード・状態の説明から、この商品のカテゴリを判断してください。
-候補: 古着・ファッション / 自転車・パーツ / トレンド商品・転売品 / トレーディングカード / LEGO / その他
-判断したカテゴリを "detected_category" フィールドに記録し、以降はそのカテゴリとして処理してください。
-トレーディングカードと判断した場合は、以降の手順でトレカ専用フローを適用すること。
-LEGOと判断した場合は、LEGOの専用チェック項目を適用すること。
+手順：
+1. 写真から商品名・型番・状態を読み取る${isAuto ? "\n2. カテゴリを自動判定する" : ""}
+${isAuto ? "3" : "2"}. 型番があれば型番で正式商品名を検索する
+${isAuto ? "4" : "3"}. メルカリ・ヤフオクの相場・SOLD実績を検索する（Yahoo!フリマ・ラクマも参考可）
+${isAuto ? "5" : "4"}. 出品すべきか判断する
 
-` : ""}【STEP 1: 画像から読み取る】
-全写真を精査し、以下を読み取ってください：
-・型番・モデル番号（タグ・刻印・ラベルから）
-・ブランド・メーカー
-・定価・価格タグ
-・カラー・サイズ・規格
-・製造年・シリアル番号
-・付属品（箱・保証書・タグ等）
-・状態（汚れ・傷・使用感を具体的に）
-${isLego ? `・セット番号・テーマ名・ミニフィグ・完品度・箱説明書の有無` : ""}
-${isCard ? `・カード名・レアリティ・セット名・危険ワードの有無` : ""}
-
-【STEP 2: 出品すべきか判断】
-状態・需要・利益見込みを総合的に判断。
-出品非推奨なら should_list: false で理由と改善案だけ返す（出品文は生成しない）。
-
-${isCard ? `【STEP 2.5: 危険ワードチェック】
-危険ワードがあれば警告 → 単体相場を必ず先に調べる。` : ""}
-
-【STEP 3: 型番・正式商品名の特定（型番が読み取れた場合は必ずこれを先に行う）】
-型番が判明している場合：
-1. 型番でウェブ検索し、メーカー公式サイト・カタログから正式商品名を確認する
-2. 正式商品名・スペック（発売年・定価・仕様）を把握する
-3. 以降の相場検索は型番・正式商品名を使って行う（曖昧なキーワードより型番検索が精度が高いため）
-
-【STEP 4: 相場調査（出品推奨の場合のみ）】
-検索対象プラットフォームはメルカリ・ヤフオク・Yahoo!フリマ・ラクマすべてを参照してよい。
-ただし出品先の推奨はメルカリ・ヤフオクのみとし、Yahoo!フリマ・ラクマは相場参考として使うにとどめること。
-
-${isCard
-  ? `各カードを1枚ずつ個別にウェブ検索 → 単体合計を計算 → まとめ売りと比較 → 提案`
-  : isLego
-  ? `セット番号・セット名で相場検索（メルカリ・ヤフオク・Yahoo!フリマ・ラクマ参照可） → ミニフィグ単体相場も確認 → 廃番・レア判定`
-  : `「${searchTarget}」でメルカリ・ヤフオク・Yahoo!フリマ・ラクマの現在相場・SOLD実績を検索 → 売れ行き傾向を確認`}
-
-【出力形式（JSONのみ、コードブロック不要）】
+JSONのみ返すこと（コードブロック不要）：
 
 出品非推奨の場合：
-{
-  "should_list": false,
-  "product_name": "商品名",
-  "extracted_info": {},
-  "not_recommended_reason": "理由を具体的に",
-  "improvement_tips": "改善できる場合のアドバイス（なければnull）"
-}
-
-${isQuick ? `【クイックモード：相場チェックのみ】
-出品文・タイトルの生成は不要です。相場調査と判定だけ行ってください。
-
-出品非推奨の場合：
-{
-  "should_list": false,
-  "mode": "quick",
-  "product_name": "商品名",
-  "detected_category": null,
-  "extracted_info": {},
-  "not_recommended_reason": "理由",
-  "improvement_tips": null,
-  "market_research": "相場調査結果",
-  "mercari_price": null,
-  "yahoo_start_price": null
-}
+{"should_list":false,"mode":"quick","product_name":"商品名","detected_category":${isAuto ? `"カテゴリ"` : "null"},"not_recommended_reason":"理由","improvement_tips":null,"market_research":"相場","mercari_price":null,"yahoo_start_price":null}
 
 出品推奨の場合：
-{
-  "should_list": true,
-  "mode": "quick",
-  "product_name": "商品名（型番含む）",
-  "detected_category": "カテゴリ",
-  "extracted_info": {},
-  "high_value_warning": null,
-  "buyer_appeal_points": "買い手訴求ポイント（簡潔に）",
-  "recommended_platform": "メルカリかヤフオク＋理由",
-  "mercari_price": 数値,
-  "yahoo_start_price": 数値,
-  "market_research": "相場調査結果（価格帯・SOLD傾向・需要背景）",
-  "card_breakdown": null,
-  "profit_tips": "一言アドバイス"
-}` : `【フルモード：出品文まで生成】
+{"should_list":true,"mode":"quick","product_name":"商品名（型番含む）","detected_category":${isAuto ? `"カテゴリ"` : "null"},"extracted_info":{},"high_value_warning":null,"buyer_appeal_points":"訴求ポイント（簡潔に）","recommended_platform":"メルカリかヤフオク＋理由","mercari_price":数値,"yahoo_start_price":数値,"market_research":"相場調査結果（価格帯・SOLD傾向・需要背景）","card_breakdown":null,"profit_tips":"一言アドバイス"}
+` : `
+【出品文生成モード】
+カテゴリ: ${categoryLabel}
+状態・説明: ${condition || "未記載"}
+キーワード: ${keywords || "なし"}
+写真: ${imageList.length}枚
+
+手順：
+${isAuto ? "0. カテゴリを自動判定する\n" : ""}1. 写真から型番・ブランド・状態・付属品等を読み取る
+2. 型番があれば公式サイトで正式商品名・スペックを確認する
+3. 出品すべきか判断する（非推奨なら理由だけ返す）
+${isCard ? "3.5. 危険ワードチェック → 単体相場を先に調べる\n" : ""}4. 相場調査（メルカリ・ヤフオク・Yahoo!フリマ・ラクマ参照可、出品推奨はメルカリ・ヤフオクのみ）
+${isCard ? "5. 各カード単体相場 → 合計 → まとめ売り比較\n" : ""}${isLego ? "5. セット番号・ミニフィグ単体相場・廃番判定\n" : ""}5. 出品文を生成する
+
+JSONのみ返すこと（コードブロック不要）：
+
+出品非推奨の場合：
+{"should_list":false,"mode":"full","product_name":"商品名","detected_category":null,"extracted_info":{},"not_recommended_reason":"理由","improvement_tips":null}
+
 出品推奨の場合：
 {
   "should_list": true,
   "mode": "full",
-  "detected_category": "AIが判断したカテゴリ（autoの場合のみ記入、それ以外はnull）",
+  "detected_category": ${isAuto ? `"カテゴリ"` : "null"},
   "product_name": "商品名（型番・セット番号含む）",
-  "extracted_info": {
-    "model_number": null,
-    "brand": null,
-    "price_tag": null,
-    "color": null,
-    "size": null,
-    "condition_from_image": null,
-    "serial_number": null,
-    "manufacture_date": null,
-    "accessories": null,
-    "lego_set_number": null,
-    "lego_theme": null,
-    "lego_minifigs": null,
-    "lego_completeness": null,
-    "lego_box_manual": null,
-    "card_names": null,
-    "rarity": null,
-    "set_name": null,
-    "special_marks": null
-  },
+  "extracted_info": {"model_number":null,"brand":null,"price_tag":null,"color":null,"size":null,"condition_from_image":null,"serial_number":null,"manufacture_date":null,"accessories":null,"lego_set_number":null,"lego_theme":null,"lego_minifigs":null,"lego_completeness":null,"lego_box_manual":null,"card_names":null,"rarity":null,"set_name":null,"special_marks":null},
   "high_value_warning": null,
-  "buyer_appeal_points": "買い手が食いつくポイント（廃番・希少性・市場背景等）",
+  "buyer_appeal_points": "買い手が食いつくポイント",
   "mercari_title": "メルカリ用タイトル（40文字以内・絵文字禁止）",
   "yahoo_title": "ヤフオク用タイトル（65文字以内・絵文字禁止）",
-  "description": "メルカリ・ヤフオク共通の出品文。iPhoneの縦スクロールで読みやすい構成にすること。具体的には：冒頭1〜2行で商品の魅力や人気を自然に伝える→空行→商品情報（型番・正式名称・ブランド）→空行→スペック（サイズ・カラー・規格等）→空行→状態説明（傷・汚れ・使用感を正直かつ自然に）→空行→買い煽り1〜2文（希少性・廃番・需要の高さ等を自然に）。各ブロックは2〜4行程度で区切り、一塊が長くならないようにする。ノークレーム・即購入OK等の定型文は一切不要。AIっぽい箇条書きや過剰な敬語も禁止。全体200〜350文字を目安に。",
-  "recommended_platform": "メルカリかヤフオク、推奨理由",
+  "description": "共通出品文（iPhone縦スクロール最適化・冒頭で魅力→商品情報→スペック→状態→買い煽り・200〜350文字・定型文禁止）",
+  "recommended_platform": "メルカリかヤフオク＋理由",
   "mercari_price": 数値,
   "yahoo_start_price": 数値,
-  "market_research": "相場調査結果（価格帯・SOLD傾向・需要背景・根拠）",
+  "market_research": "相場調査結果",
   "card_breakdown": ${isCard ? `"各カード単体相場・合計・まとめ売り比較"` : "null"},
   "profit_tips": "利益最大化・出品タイミング・写真のコツ"
-}`}`,
+}
+`,
       },
     ],
   };
@@ -244,7 +176,7 @@ ${isQuick ? `【クイックモード：相場チェックのみ】
         {
           type: "web_search_20260209",
           name: "web_search",
-          max_uses: 10,
+          max_uses: isQuick ? 4 : 10,
         },
       ],
       messages: [userMessage],
