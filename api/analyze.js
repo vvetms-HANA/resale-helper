@@ -10,7 +10,8 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  const { images, category, condition, keywords } = req.body;
+  const { images, category, condition, keywords, mode } = req.body;
+  const isQuick = mode === "quick"; // 相場チェックのみ
 
   if (!category) {
     return res.status(400).json({ error: "category is required" });
@@ -159,9 +160,43 @@ ${isCard
   "improvement_tips": "改善できる場合のアドバイス（なければnull）"
 }
 
+${isQuick ? `【クイックモード：相場チェックのみ】
+出品文・タイトルの生成は不要です。相場調査と判定だけ行ってください。
+
+出品非推奨の場合：
+{
+  "should_list": false,
+  "mode": "quick",
+  "product_name": "商品名",
+  "detected_category": null,
+  "extracted_info": {},
+  "not_recommended_reason": "理由",
+  "improvement_tips": null,
+  "market_research": "相場調査結果",
+  "mercari_price": null,
+  "yahoo_start_price": null
+}
+
 出品推奨の場合：
 {
   "should_list": true,
+  "mode": "quick",
+  "product_name": "商品名（型番含む）",
+  "detected_category": "カテゴリ",
+  "extracted_info": {},
+  "high_value_warning": null,
+  "buyer_appeal_points": "買い手訴求ポイント（簡潔に）",
+  "recommended_platform": "メルカリかヤフオク＋理由",
+  "mercari_price": 数値,
+  "yahoo_start_price": 数値,
+  "market_research": "相場調査結果（価格帯・SOLD傾向・需要背景）",
+  "card_breakdown": null,
+  "profit_tips": "一言アドバイス"
+}` : `【フルモード：出品文まで生成】
+出品推奨の場合：
+{
+  "should_list": true,
+  "mode": "full",
   "detected_category": "AIが判断したカテゴリ（autoの場合のみ記入、それ以外はnull）",
   "product_name": "商品名（型番・セット番号含む）",
   "extracted_info": {
@@ -195,7 +230,7 @@ ${isCard
   "market_research": "相場調査結果（価格帯・SOLD傾向・需要背景・根拠）",
   "card_breakdown": ${isCard ? `"各カード単体相場・合計・まとめ売り比較"` : "null"},
   "profit_tips": "利益最大化・出品タイミング・写真のコツ"
-}`,
+}`}`,
       },
     ],
   };

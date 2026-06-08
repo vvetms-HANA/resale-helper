@@ -478,12 +478,18 @@ textarea:focus, input:focus { border-color: var(--accent); }
 
 <!-- 固定ボタン -->
 <div class="bottom-bar">
-  <div style="display:flex;gap:10px">
-    <button class="analyze-btn" id="clearBtn" onclick="clearAll()" style="display:none;flex:0 0 56px;background:#1a2030;font-size:1.2rem;padding:0">
+  <div style="display:flex;gap:8px">
+    <button class="analyze-btn" id="clearBtn" onclick="clearAll()"
+      style="display:none;flex:0 0 52px;background:#1a2030;font-size:1.2rem;padding:0;border-radius:12px">
       🗑
     </button>
-    <button class="analyze-btn" id="analyzeBtn" onclick="analyze()" style="flex:1">
-      判定する
+    <button class="analyze-btn" id="quickBtn" onclick="analyze('quick')"
+      style="flex:1;background:linear-gradient(135deg,#1a3a5f,#0f2a3a);font-size:0.88rem">
+      相場チェック
+    </button>
+    <button class="analyze-btn" id="fullBtn" onclick="analyze('full')"
+      style="flex:1;font-size:0.88rem">
+      出品文まで作る
     </button>
   </div>
 </div>
@@ -588,7 +594,7 @@ function renderThumbs() {
 }
 
 // ── 解析 ──
-async function analyze() {
+async function analyze(mode = "full") {
   const condition = document.getElementById("condition").value.trim();
   const keywords  = document.getElementById("keywords").value.trim();
 
@@ -598,7 +604,8 @@ async function analyze() {
   }
 
   // ボタン無効化・ローディング表示
-  document.getElementById("analyzeBtn").disabled = true;
+  document.getElementById("quickBtn").disabled = true;
+  document.getElementById("fullBtn").disabled = true;
   document.getElementById("resultArea").style.display = "none";
   const overlay = document.getElementById("loadingOverlay");
   overlay.classList.add("show");
@@ -622,6 +629,7 @@ async function analyze() {
         category: selectedCategory,
         condition,
         keywords,
+        mode,
       }),
     });
     const data = await res.json();
@@ -636,7 +644,8 @@ async function analyze() {
     clearInterval(timer);
     steps.forEach(s => document.getElementById(s).classList.remove("active"));
     overlay.classList.remove("show");
-    document.getElementById("analyzeBtn").disabled = false;
+    document.getElementById("quickBtn").disabled = false;
+    document.getElementById("fullBtn").disabled = false;
   }
 }
 
