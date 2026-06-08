@@ -53,7 +53,8 @@ export default async function handler(req, res) {
   const systemPrompt = isQuick
     ? `あなたはフリマアプリの相場に詳しいリサーラーです。
 写真から商品を特定し、メルカリ・ヤフオクの現在相場を調べ、出品すべきか判断するのが仕事です。
-出品文・タイトルは絶対に生成しない。JSONのみ返す。`
+出品文・タイトルは絶対に生成しない。JSONのみ返す。
+ウェブ検索がレート制限やエラーで失敗した場合は、検索をリトライせずあなたの知識で価格を推定し、market_researchに「※推定値」と明記してJSONを返すこと。絶対にエラーメッセージだけ返さない。`
     : `あなたは中古品の個人売買に詳しい実売経験者です。
 
 出品文を書く際のルール：
@@ -163,42 +164,53 @@ JSONのみ返すこと（コードブロック不要）：
     ],
   };
 
-  try {
-    const stream = client.messages.stream({
-      model: "claude-sonnet-4-6",
-      max_tokens: 4096,
-      system: systemPrompt,
-      tools: [
-        {
-          type: "web_search_20260209",
-          name: "web_search",
-          max_uses: isQuick ? 3 : 10,
-        },
-      ],
-      messages: [userMessage],
-    });
+  const callAPI = () => client.messages.stream({
+    model: "claude-sonnet-4-6",
+    max_tokens: 4096,
+    system: systemPrompt,
+    tools: [
+      {
+        type: "web_search_20260209",
+        name: "web_search",
+        max_uses: isQuick ? 3 : 10,
+      },
+    ],
+    messages: [userMessage],
+  }).finalMessage();
 
-    const response = await stream.finalMessage();
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-    const textBlock = response.content.find((b) => b.type === "text");
-    if (!textBlock) {
-      return res.status(500).json({ error: "No text response from AI" });
-    }
-
-    let parsed;
+  let response;
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const raw = textBlock.text.trim().replace(/^```json\n?/, "").replace(/\n?```$/, "");
-      parsed = JSON.parse(raw);
-    } catch {
-      parsed = { raw: textBlock.text };
+      response = await callAPI();
+      break;
+    } catch (err) {
+      const isRateLimit = err.status === 429 || /rate.?limit/i.test(err.message);
+      if (isRateLimit && attempt < 2) {
+        await sleep(3000 * (attempt + 1));
+        continue;
+      }
+      console.error(err);
+      return res.status(500).json({ error: err.message });
     }
-
-    return res.status(200).json({
-      ...parsed,
-      _usage: response.usage,
-    });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: err.message });
   }
+
+  const textBlock = response.content.find((b) => b.type === "text");
+  if (!textBlock) {
+    return res.status(500).json({ error: "No text response from AI" });
+  }
+
+  let parsed;
+  try {
+    const raw = textBlock.text.trim().replace(/^```json\n?/, "").replace(/\n?```$/, "");
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = { raw: textBlock.text };
+  }
+
+  return res.status(200).json({
+    ...parsed,
+    _usage: response.usage,
+  });
 }
