@@ -207,8 +207,19 @@ JSONのみ返すこと（コードブロック不要）：
 
   let parsed;
   try {
-    const raw = textBlock.text.trim().replace(/^```json\n?/, "").replace(/\n?```$/, "");
-    parsed = JSON.parse(raw);
+    // コードブロック除去 → そのままパース試行
+    let raw = textBlock.text.trim().replace(/^```json\n?/, "").replace(/\n?```$/, "").trim();
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      // JSONが文中に埋まっている場合（前後に説明文がある）は抽出する
+      const match = raw.match(/(\{[\s\S]*\})/);
+      if (match) {
+        parsed = JSON.parse(match[1]);
+      } else {
+        parsed = { raw: textBlock.text };
+      }
+    }
   } catch {
     parsed = { raw: textBlock.text };
   }
