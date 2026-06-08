@@ -478,9 +478,14 @@ textarea:focus, input:focus { border-color: var(--accent); }
 
 <!-- 固定ボタン -->
 <div class="bottom-bar">
-  <button class="analyze-btn" id="analyzeBtn" onclick="analyze()">
-    判定する
-  </button>
+  <div style="display:flex;gap:10px">
+    <button class="analyze-btn" id="clearBtn" onclick="clearAll()" style="display:none;flex:0 0 56px;background:#1a2030;font-size:1.2rem;padding:0">
+      🗑
+    </button>
+    <button class="analyze-btn" id="analyzeBtn" onclick="analyze()" style="flex:1">
+      判定する
+    </button>
+  </div>
 </div>
 
 <script>
@@ -765,6 +770,7 @@ function renderResult(d) {
   `;
 
   area.scrollIntoView({ behavior: "smooth" });
+  document.getElementById("clearBtn").style.display = "block";
 }
 
 // ── ユーティリティ ──
@@ -787,6 +793,20 @@ function copyText(textId, btnId, label) {
     btn.classList.add("copied");
     setTimeout(() => { btn.textContent = label; btn.classList.remove("copied"); }, 2000);
   });
+}
+
+function clearAll() {
+  imageList = [];
+  renderThumbs();
+  document.getElementById("condition").value = "";
+  document.getElementById("keywords").value = "";
+  document.getElementById("resultArea").style.display = "none";
+  document.getElementById("resultArea").innerHTML = "";
+  document.getElementById("clearBtn").style.display = "none";
+  document.querySelectorAll("#categoryRow .chip").forEach(c => c.classList.remove("active"));
+  document.querySelector('#categoryRow .chip[data-val="auto"]').classList.add("active");
+  selectedCategory = "auto";
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function num(n) { return n ? Number(n).toLocaleString() : "—"; }
