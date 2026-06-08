@@ -116,7 +116,7 @@ ${isCard ? "5. 各カード単体相場 → 合計 → まとめ売り比較\n" 
 
   try {
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-1.5-flash-latest",
       systemInstruction,
       tools: [{ googleSearch: {} }],
       generationConfig: {
