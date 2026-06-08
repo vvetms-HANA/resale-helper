@@ -116,13 +116,15 @@ Prize/プライズ/非売品/NOT FOR SALE/大会限定/配布限定/Trophy/Champ
 
 1. 写真から商品名・ブランド・状態を読み取る${isAuto ? "。カテゴリも判定する" : ""}
 2. 商品名でメルカリ・ヤフオクの相場を検索する（2〜3回で完結させる）
-3. 出品すべきか判断してJSONで返す
+3. 出品すべきか判断する
 
-出品文・タイトルは不要。JSONのみ（コードブロック不要）：
+【重要】必ず以下のJSON形式のみで返すこと。説明文・コードブロック・改行は一切不要。
 
-非推奨: {"should_list":false,"mode":"quick","product_name":"商品名","detected_category":${isAuto ? `"カテゴリ"` : "null"},"not_recommended_reason":"理由","improvement_tips":null,"market_research":"相場概要","mercari_price":null,"yahoo_start_price":null}
+出品非推奨の場合（JSONのみ）:
+{"should_list":false,"mode":"quick","product_name":"商品名","detected_category":${isAuto ? `"カテゴリ"` : "null"},"not_recommended_reason":"理由","improvement_tips":null,"market_research":"相場概要","mercari_price":null,"yahoo_start_price":null}
 
-推奨: {"should_list":true,"mode":"quick","product_name":"商品名","detected_category":${isAuto ? `"カテゴリ"` : "null"},"high_value_warning":null,"buyer_appeal_points":"訴求ポイント","recommended_platform":"推奨先と理由","mercari_price":数値,"yahoo_start_price":数値,"market_research":"価格帯・SOLD傾向","profit_tips":"一言"}
+出品推奨の場合（JSONのみ）:
+{"should_list":true,"mode":"quick","product_name":"商品名","detected_category":${isAuto ? `"カテゴリ"` : "null"},"high_value_warning":null,"buyer_appeal_points":"訴求ポイント","recommended_platform":"推奨先と理由","mercari_price":数値,"yahoo_start_price":数値,"market_research":"価格帯・SOLD傾向","profit_tips":"一言"}
 ` : `
 【出品文生成モード】
 カテゴリ: ${categoryLabel}
