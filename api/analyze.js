@@ -52,11 +52,8 @@ export default async function handler(req, res) {
 
   const systemPrompt = isQuick
     ? `あなたはフリマアプリの相場に詳しいリサーラーです。
-写真から商品を特定し、メルカリ・ヤフオクの現在相場を調べ、出品すべきか判断するのが仕事です。
-出品文・タイトルは絶対に生成しない。JSONのみ返す。
-ウェブ検索がレート制限やエラーで失敗した場合は追加検索せず、あなたが知っている相場知識で価格を推定すること。
-market_researchに「※検索不可のため推定」と明記すればよい。
-どんな状況でも必ずJSONを返すこと。エラーメッセージだけ返すことは絶対に禁止。`
+写真から型番・ブランドを正確に読み取り、それを使ってメルカリ・ヤフオクの相場を調べ、仕入れとして出品すべきか即判断するのが仕事です。
+出品文・タイトルは絶対に生成しない。必ずJSONのみ返す。`
     : `あなたは中古品の個人売買に詳しい実売経験者です。
 
 出品文を書く際のルール：
@@ -114,17 +111,18 @@ Prize/プライズ/非売品/NOT FOR SALE/大会限定/配布限定/Trophy/Champ
 状態: ${condition || "未記載"}
 キーワード: ${keywords || "なし"}
 
-1. 写真から商品名・ブランド・状態を読み取る${isAuto ? "。カテゴリも判定する" : ""}
-2. 商品名でメルカリ・ヤフオクの相場を検索する（2〜3回で完結させる）
-3. 出品すべきか判断する
+【手順】
+1. 写真から型番・ブランド・カラー・サイズ・状態・付属品を読み取る${isAuto ? "。カテゴリも判定する" : ""}
+2. 型番またはブランド＋商品名でメルカリ・ヤフオクの相場を検索する（最大2回で完結）
+3. 仕入れとして出品すべきか判断する
 
-【重要】必ず以下のJSON形式のみで返すこと。説明文・コードブロック・改行は一切不要。
+【重要】必ずJSONのみ返すこと。説明文・コードブロック不要。
 
-出品非推奨の場合（JSONのみ）:
-{"should_list":false,"mode":"quick","product_name":"商品名","detected_category":${isAuto ? `"カテゴリ"` : "null"},"not_recommended_reason":"理由","improvement_tips":null,"market_research":"相場概要","mercari_price":null,"yahoo_start_price":null}
+出品非推奨:
+{"should_list":false,"mode":"quick","product_name":"商品名","detected_category":${isAuto ? `"カテゴリ"` : "null"},"extracted_info":{"model_number":null,"brand":null,"color":null,"size":null,"condition_from_image":null,"accessories":null},"not_recommended_reason":"理由","market_research":"相場概要","mercari_price":null,"yahoo_start_price":null}
 
-出品推奨の場合（JSONのみ）:
-{"should_list":true,"mode":"quick","product_name":"商品名","detected_category":${isAuto ? `"カテゴリ"` : "null"},"high_value_warning":null,"buyer_appeal_points":"訴求ポイント","recommended_platform":"推奨先と理由","mercari_price":数値,"yahoo_start_price":数値,"market_research":"価格帯・SOLD傾向","profit_tips":"一言"}
+出品推奨:
+{"should_list":true,"mode":"quick","product_name":"商品名（型番含む）","detected_category":${isAuto ? `"カテゴリ"` : "null"},"extracted_info":{"model_number":null,"brand":null,"color":null,"size":null,"condition_from_image":null,"accessories":null},"high_value_warning":null,"buyer_appeal_points":"訴求ポイント（簡潔に）","recommended_platform":"推奨先と理由","mercari_price":数値,"yahoo_start_price":数値,"market_research":"価格帯・SOLD実績・需要傾向","profit_tips":"一言アドバイス"}
 ` : `
 【出品文生成モード】
 カテゴリ: ${categoryLabel}
@@ -170,15 +168,9 @@ JSONのみ返すこと（コードブロック不要）：
 
   const callAPI = () => client.messages.stream({
     model: "claude-sonnet-4-6",
-    max_tokens: 4096,
+    max_tokens: isQuick ? 1024 : 4096,
     system: systemPrompt,
-    tools: [
-      {
-        type: "web_search_20260209",
-        name: "web_search",
-        max_uses: isQuick ? 3 : 10,
-      },
-    ],
+    tools: [{ type: "web_search_20260209", name: "web_search", max_uses: isQuick ? 2 : 10 }],
     messages: [userMessage],
   }).finalMessage();
 
