@@ -735,7 +735,7 @@ function renderQueue() {
          </div>`
       : `<div class="job-body" id="jbody-${job.id}">
            <div style="padding:4px;display:flex;flex-direction:column;gap:10px">
-             ${buildResultHtml(job.result, job.id)}
+             ${buildResultHtml(job)}
            </div>
          </div>`;
     return `
@@ -761,7 +761,20 @@ function toggleJob(id) {
   chev.classList.toggle("open");
 }
 
-function buildResultHtml(d, jid) {
+function analyzeFromJob(jobId) {
+  const src = jobs.find(j => j.id === jobId);
+  if (!src) return;
+  const id = ++jobSeq;
+  const job = { id, label: src.label, mode: "full", category: src.category,
+    images: src.images, condition: src.condition, keywords: src.keywords,
+    status: "processing", result: null, error: null };
+  jobs.unshift(job);
+  renderQueue();
+  runJob(job);
+}
+
+function buildResultHtml(job) {
+  const d = job.result, jid = job.id;
   if (!d) return "";
   if (d.raw) return `<div class="card"><div class="listing-text">${escHtml(d.raw)}</div></div>`;
 
@@ -801,7 +814,8 @@ function buildResultHtml(d, jid) {
     ${d.buyer_appeal_points ? `<div class="appeal-card"><div class="ac-title">買い手が刺さるポイント</div><div class="ac-body">${escHtml(d.buyer_appeal_points)}</div></div>` : ""}
     ${priceCard}
     <div class="card"><div class="card-label">相場・市場背景</div><div class="info-text">${escHtml(d.market_research || "—")}</div></div>
-    ${d.profit_tips ? `<div class="card"><div class="card-label">アドバイス</div><div class="info-text">${escHtml(d.profit_tips)}</div></div>` : ""}`;
+    ${d.profit_tips ? `<div class="card"><div class="card-label">アドバイス</div><div class="info-text">${escHtml(d.profit_tips)}</div></div>` : ""}
+    <button class="analyze-btn" onclick="analyzeFromJob(${jid})" style="font-size:0.9rem">出品文まで作る →</button>`;
 
   // フルモード
   const bodyText    = d.description || "";
