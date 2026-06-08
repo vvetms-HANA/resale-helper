@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>仕入れ判定</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+:root {
+  --bg:       #0a0e17;
+  --surface:  #141a26;
+  --border:   #1e2a40;
+  --accent:   #3b82f6;
+  --accent2:  #10b981;
+  --warn:     #f59e0b;
+  --danger:   #ef4444;
+  --text:     #e2e8f0;
+  --muted:    #4a5568;
+  --safe-b:   env(safe-area-inset-bottom, 0px);
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+  overscroll-behavior: none;
+}
+
+/* ── ヘッダー ── */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 14px 16px 10px;
+  padding-top: calc(14px + env(safe-area-inset-top, 0px));
+  background: rgba(10,14,23,0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.app-header h1 { font-size: 1rem; font-weight: 700; letter-spacing: -0.01em; }
+.app-header .sub { font-size: 0.65rem; color: var(--muted); }
+
+/* ── メインコンテンツ ── */
+.main {
+  padding: 16px;
+  padding-bottom: calc(100px + var(--safe-b));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── カテゴリチップ ── */
+.section-label {
+  font-size: 0.65rem;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.chip.active {
+  background: #1e3a5f;
+  border-color: var(--accent);
+  color: #93c5fd;
+  font-weight: 600;
+}
+
+/* ── 写真エリア ── */
+.photo-area { display: flex; flex-direction: column; gap: 10px; }
+
+/* カメラボタン（メインアクション） */
+.camera-btn-wrap { position: relative; }
+.camera-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #1e3a5f, #0f2a1e);
+  border: 1.5px dashed #2d4a7a;
+  border-radius: 16px;
+  padding: 28px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.camera-btn.has-photos { border-style: solid; border-color: var(--accent); }
+.camera-btn input {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+.camera-icon { font-size: 2.4rem; line-height: 1; }
+.camera-label { font-size: 0.9rem; font-weight: 600; color: #93c5fd; }
+.camera-sub   { font-size: 0.7rem; color: var(--muted); }
+
+/* サムネイルグリッド */
+.thumb-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+.thumb-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.thumb-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb-num {
+  position: absolute; top: 3px; left: 3px;
+  background: rgba(0,0,0,0.6);
+  color: #93c5fd;
+  font-size: 0.55rem; font-weight: 700;
+  padding: 1px 4px; border-radius: 3px;
+}
+.thumb-del {
+  position: absolute; top: 3px; right: 3px;
+  width: 18px; height: 18px;
+  background: rgba(180,30,30,0.85);
+  color: #fff; border: none; border-radius: 50%;
+  font-size: 0.65rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.photo-count { font-size: 0.7rem; color: var(--muted); text-align: right; }
+.photo-count span { color: #93c5fd; font-weight: 700; }
+
+/* ── テキスト入力（折りたたみ） ── */
+.optional-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+  padding: 4px 0;
+}
+.optional-toggle .arrow { transition: transform 0.2s; font-size: 0.6rem; }
+.optional-toggle.open .arrow { transform: rotate(90deg); }
+
+.optional-fields {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+.optional-fields.open { display: flex; }
+
+textarea, input[type="text"] {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 0.95rem;
+  padding: 12px 14px;
+  font-family: inherit;
+  outline: none;
+  -webkit-appearance: none;
+}
+textarea { resize: none; min-height: 70px; line-height: 1.5; }
+textarea:focus, input:focus { border-color: var(--accent); }
+::placeholder { color: var(--muted); }
+
+/* ── 固定ボタン（下部） ── */
+.bottom-bar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  padding: 12px 16px;
+  padding-bottom: calc(12px + var(--safe-b));
+  background: rgba(10,14,23,0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border);
+  z-index: 20;
+}
+.analyze-btn {
+  width: 100%;
+  background: linear-gradient(135deg, var(--accent), #1d4ed8);
+  border: none;
+  border-radius: 14px;
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 700;
+  padding: 17px;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  transition: opacity 0.2s;
+}
+.analyze-btn:disabled { opacity: 0.35; }
+
+/* ── ローディング ── */
+.loading-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(10,14,23,0.88);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 50;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+.loading-overlay.show { display: flex; }
+.spinner-ring {
+  width: 52px; height: 52px;
+  border: 4px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-steps { display: flex; flex-direction: column; gap: 8px; text-align: center; }
+.lstep { font-size: 0.82rem; color: var(--muted); transition: color 0.3s; }
+.lstep.active { color: #93c5fd; font-weight: 600; }
+
+/* ── 結果エリア ── */
+.result-section { display: flex; flex-direction: column; gap: 12px; }
+
+/* 判定バナー */
+.verdict-banner {
+  border-radius: 14px;
+  padding: 18px 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.verdict-banner.go   { background: #052e16; border: 1.5px solid #16a34a; }
+.verdict-banner.stop { background: #1c0a00; border: 1.5px solid var(--warn); }
+.verdict-icon { font-size: 2rem; line-height: 1; flex-shrink: 0; margin-top: 2px; }
+.verdict-title { font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
+.verdict-body  { font-size: 0.82rem; line-height: 1.65; }
+.verdict-banner.go   .verdict-title { color: #4ade80; }
+.verdict-banner.stop .verdict-title { color: #fbbf24; }
+.verdict-banner.go   .verdict-body  { color: #86efac; }
+.verdict-banner.stop .verdict-body  { color: #fde68a; }
+
+/* カード */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+}
+.card-label {
+  font-size: 0.62rem;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+/* 読み取り情報チップ */
+.chip-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.info-chip {
+  background: #0f1e35;
+  border: 1px solid #1e3a5f;
+  border-radius: 20px;
+  padding: 5px 10px;
+  display: flex; align-items: center; gap: 5px;
+  font-size: 0.75rem; color: #93c5fd;
+}
+.info-chip .cl { color: var(--muted); font-size: 0.62rem; }
+
+/* 価格行 */
+.price-row { display: flex; gap: 10px; }
+.price-box {
+  flex: 1;
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 12px 8px;
+  text-align: center;
+}
+.price-label { font-size: 0.62rem; color: var(--muted); }
+.price-val   { font-size: 1.35rem; font-weight: 700; color: var(--accent2); margin-top: 3px; }
+
+/* プラットフォームバッジ */
+.pf-badge {
+  display: inline-block;
+  background: #052e16;
+  border: 1px solid #16a34a;
+  border-radius: 6px;
+  color: #4ade80;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  margin-bottom: 8px;
+}
+
+/* 出品文テキスト */
+.listing-text {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 14px;
+  font-size: 0.88rem;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #cbd5e1;
+}
+
+/* コピーボタン */
+.copy-btn {
+  margin-top: 10px;
+  width: 100%;
+  background: #0f1e35;
+  border: 1px solid #1e3a5f;
+  border-radius: 10px;
+  color: #93c5fd;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.copy-btn:active  { background: #1e3a5f; }
+.copy-btn.copied  { color: var(--accent2); border-color: #16a34a; background: #052e16; }
+
+/* 赤警告 */
+.high-warn {
+  background: #1a0505;
+  border: 1.5px solid var(--danger);
+  border-radius: 12px;
+  padding: 14px;
+}
+.high-warn .hw-title { font-size: 0.78rem; color: var(--danger); font-weight: 700; margin-bottom: 6px; }
+.high-warn .hw-body  { font-size: 0.82rem; color: #fca5a5; line-height: 1.6; }
+
+/* 青情報カード */
+.appeal-card {
+  background: #0a1628;
+  border: 1px solid #1e3a5f;
+  border-radius: 12px;
+  padding: 14px;
+}
+.appeal-card .ac-title { font-size: 0.62rem; color: #60a5fa; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; }
+.appeal-card .ac-body  { font-size: 0.82rem; color: #93c5fd; line-height: 1.7; }
+
+/* 調査テキスト */
+.info-text {
+  font-size: 0.82rem;
+  color: #94a3b8;
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+
+/* エラー */
+.error-card {
+  background: #1a0505;
+  border: 1px solid #7b1f1f;
+  border-radius: 12px;
+  padding: 16px;
+  color: #fca5a5;
+  font-size: 0.85rem;
+}
+
+/* 紫（トレカ） */
+.card-purple {
+  background: #0d0520;
+  border: 1px solid #6d28d9;
+  border-radius: 12px;
+  padding: 14px;
+}
+.card-purple .cp-title { font-size: 0.62rem; color: #a78bfa; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; }
+.card-purple .cp-body  { font-size: 0.82rem; color: #c4b5fd; line-height: 1.7; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+
+<!-- ヘッダー -->
+<header class="app-header">
+  <div>
+    <h1>仕入れ判定</h1>
+    <div class="sub">メルカリ・ヤフオク 出品サポート</div>
+  </div>
+</header>
+
+<!-- メインフォーム -->
+<div class="main" id="formArea">
+
+  <!-- カテゴリ -->
+  <div>
+    <div class="section-label">カテゴリ <span style="color:var(--muted);text-transform:none;letter-spacing:0;font-size:0.6rem">— 選ばなければ画像から自動判定</span></div>
+    <div class="chip-row" id="categoryRow">
+      <div class="chip active" data-val="auto">自動</div>
+      <div class="chip" data-val="clothes">古着</div>
+      <div class="chip" data-val="bicycle">自転車</div>
+      <div class="chip" data-val="trend">トレンド</div>
+      <div class="chip" data-val="trading_card">トレカ</div>
+      <div class="chip" data-val="lego">LEGO</div>
+    </div>
+  </div>
+
+  <!-- 写真 -->
+  <div class="photo-area">
+    <div class="section-label">写真（最大10枚）</div>
+
+    <!-- カメラ / アルバム 2ボタン -->
+    <div style="display:flex;gap:10px">
+      <div class="camera-btn-wrap" style="flex:1;position:relative">
+        <div class="camera-btn" id="cameraBtn" style="padding:20px 10px">
+          <input type="file" accept="image/*" capture="environment" id="cameraInput" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">
+          <div class="camera-icon" style="font-size:1.8rem">📷</div>
+          <div class="camera-label" style="font-size:0.82rem">カメラで撮影</div>
+        </div>
+      </div>
+      <div class="camera-btn-wrap" style="flex:1;position:relative">
+        <div class="camera-btn" id="albumBtn" style="padding:20px 10px">
+          <input type="file" accept="image/*" multiple id="albumInput" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">
+          <div class="camera-icon" style="font-size:1.8rem">🖼</div>
+          <div class="camera-label" style="font-size:0.82rem">アルバムから選ぶ</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="thumb-grid" id="thumbGrid"></div>
+    <div class="photo-count" id="photoCount" style="display:none">
+      <span id="photoNum">0</span> 枚 &nbsp;·&nbsp; 送信サイズ: <span id="photoSize">—</span>
+    </div>
+  </div>
+
+  <!-- キーワード・状態（任意、折りたたみ） -->
+  <div>
+    <div class="optional-toggle" id="optToggle" onclick="toggleOpt()">
+      <span class="arrow">▶</span>
+      <span>キーワード・状態を入力（任意）</span>
+    </div>
+    <div class="optional-fields" id="optFields">
+      <div>
+        <div class="section-label" style="margin-bottom:6px">商品名・型番・キーワード</div>
+        <input type="text" id="keywords" placeholder="例: ナイキ エアマックス 95 / LEGO 75192">
+      </div>
+      <div>
+        <div class="section-label" style="margin-bottom:6px">状態・補足</div>
+        <textarea id="condition" placeholder="例: 未使用・タグあり / 少し傷あり・動作OK"></textarea>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- 結果エリア（フォームの下につながる） -->
+<div class="main" id="resultArea" style="display:none; padding-top:0"></div>
+
+<!-- ローディング -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner-ring"></div>
+  <div class="loading-steps">
+    <div class="lstep active" id="ls1">写真を送信・読み取り中...</div>
+    <div class="lstep" id="ls2">相場をウェブ検索中...</div>
+    <div class="lstep" id="ls3">出品文を生成中...</div>
+  </div>
+</div>
+
+<!-- 固定ボタン -->
+<div class="bottom-bar">
+  <button class="analyze-btn" id="analyzeBtn" onclick="analyze()">
+    判定する
+  </button>
+</div>
+
+<script>
+// ── カテゴリ選択 ──
+let selectedCategory = "auto";
+document.getElementById("categoryRow").addEventListener("click", e => {
+  const chip = e.target.closest(".chip");
+  if (!chip) return;
+  document.querySelectorAll("#categoryRow .chip").forEach(c => c.classList.remove("active"));
+  chip.classList.add("active");
+  selectedCategory = chip.dataset.val;
+});
+
+// ── 任意フィールド開閉 ──
+function toggleOpt() {
+  const toggle = document.getElementById("optToggle");
+  const fields  = document.getElementById("optFields");
+  toggle.classList.toggle("open");
+  fields.classList.toggle("open");
+}
+
+// ── 写真管理 ──
+let imageList = []; // 圧縮済み base64
+
+document.getElementById("cameraInput").addEventListener("change", function () {
+  addFiles(Array.from(this.files));
+  this.value = "";
+});
+document.getElementById("albumInput").addEventListener("change", function () {
+  addFiles(Array.from(this.files));
+  this.value = "";
+});
+
+function addFiles(files) {
+  const room = 10 - imageList.length;
+  files.slice(0, room).forEach(f => {
+    if (!f.type.startsWith("image/")) return;
+    compressImage(f).then(dataUrl => {
+      imageList.push(dataUrl);
+      renderThumbs();
+    });
+  });
+}
+
+// Canvas で長辺1280px・JPEG品質0.75 に圧縮（AI分析には十分な解像度）
+function compressImage(file) {
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 1280;
+      let { width: w, height: h } = img;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else       { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL("image/jpeg", 0.75));
+    };
+    img.src = url;
+  });
+}
+
+function removeImage(i) {
+  imageList.splice(i, 1);
+  renderThumbs();
+}
+
+function renderThumbs() {
+  const grid = document.getElementById("thumbGrid");
+  const cnt  = document.getElementById("photoCount");
+  const btn  = document.getElementById("cameraBtn");
+
+  if (imageList.length === 0) {
+    grid.innerHTML = "";
+    cnt.style.display = "none";
+    btn.classList.remove("has-photos");
+    return;
+  }
+
+  btn.classList.add("has-photos");
+  cnt.style.display = "block";
+  document.getElementById("photoNum").textContent = imageList.length;
+
+  // 合計サイズ表示（base64 → バイト換算: length * 0.75）
+  const totalKB = Math.round(imageList.reduce((s, d) => s + d.length * 0.75, 0) / 1024);
+  document.getElementById("photoSize").textContent =
+    totalKB < 1024 ? `${totalKB} KB` : `${(totalKB / 1024).toFixed(1)} MB`;
+
+  grid.innerHTML = imageList.map((src, i) => `
+    <div class="thumb-item">
+      <img src="${src}" alt="">
+      <div class="thumb-num">${i + 1}</div>
+      <button class="thumb-del" onclick="removeImage(${i})">✕</button>
+    </div>
+  `).join("");
+}
+
+// ── 解析 ──
+async function analyze() {
+  const condition = document.getElementById("condition").value.trim();
+  const keywords  = document.getElementById("keywords").value.trim();
+
+  if (imageList.length === 0 && !condition && !keywords) {
+    alert("写真かキーワードを入力してください");
+    return;
+  }
+
+  // ボタン無効化・ローディング表示
+  document.getElementById("analyzeBtn").disabled = true;
+  document.getElementById("resultArea").style.display = "none";
+  const overlay = document.getElementById("loadingOverlay");
+  overlay.classList.add("show");
+
+  // ステップアニメーション
+  const steps = ["ls1","ls2","ls3"];
+  let si = 0;
+  document.getElementById(steps[0]).classList.add("active");
+  const timer = setInterval(() => {
+    document.getElementById(steps[si]).classList.remove("active");
+    si = Math.min(si + 1, 2);
+    document.getElementById(steps[si]).classList.add("active");
+  }, 9000);
+
+  try {
+    const res = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        images: imageList,
+        category: selectedCategory,
+        condition,
+        keywords,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "エラーが発生しました");
+    renderResult(data);
+  } catch (e) {
+    const area = document.getElementById("resultArea");
+    area.style.display = "flex";
+    area.innerHTML = `<div class="error-card">エラー: ${escHtml(e.message)}</div>`;
+    area.scrollIntoView({ behavior: "smooth" });
+  } finally {
+    clearInterval(timer);
+    steps.forEach(s => document.getElementById(s).classList.remove("active"));
+    overlay.classList.remove("show");
+    document.getElementById("analyzeBtn").disabled = false;
+  }
+}
+
+// ── 結果レンダリング ──
+function renderResult(d) {
+  const area = document.getElementById("resultArea");
+  area.style.display = "flex";
+
+  if (d.raw) {
+    area.innerHTML = `<div class="card"><div class="card-label">出力</div><div class="listing-text">${escHtml(d.raw)}</div></div>`;
+    area.scrollIntoView({ behavior: "smooth" });
+    return;
+  }
+
+  // 画像読み取り情報チップ
+  let infoChips = "";
+  if (d.extracted_info) {
+    const chips = Object.entries(d.extracted_info)
+      .filter(([,v]) => v && v !== "null")
+      .map(([k,v]) => `<div class="info-chip"><span class="cl">${escHtml(labelFor(k))}</span>${escHtml(v)}</div>`)
+      .join("");
+    if (chips) infoChips = `
+      <div class="card">
+        <div class="card-label">読み取り情報</div>
+        <div class="chip-list">${chips}</div>
+      </div>`;
+  }
+
+  // ── 非推奨の場合 ──
+  if (d.should_list === false) {
+    area.innerHTML = `
+      <div class="verdict-banner stop">
+        <div class="verdict-icon">⚠️</div>
+        <div>
+          <div class="verdict-title">出品は見送りを推奨</div>
+          <div class="verdict-body">${escHtml(d.not_recommended_reason || "")}</div>
+        </div>
+      </div>
+      ${infoChips}
+      ${d.improvement_tips ? `<div class="card">
+        <div class="card-label">改善・代替の提案</div>
+        <div class="info-text">${escHtml(d.improvement_tips)}</div>
+      </div>` : ""}
+    `;
+    area.scrollIntoView({ behavior: "smooth" });
+    return;
+  }
+
+  // ── 推奨の場合 ──
+  const bodyText    = d.description || "";
+  const mercariText = `${d.mercari_title || ""}\n\n${bodyText}\n\n#${(d.product_name || "").replace(/\s+/g,"")}`;
+  const yahooText   = `${d.yahoo_title  || ""}\n\n${bodyText}`;
+
+  area.innerHTML = `
+    <!-- 判定バナー -->
+    <div class="verdict-banner go">
+      <div class="verdict-icon">✅</div>
+      <div>
+        <div class="verdict-title">出品を推奨</div>
+        <div class="verdict-body">${escHtml(d.product_name || "")}${d.detected_category ? "\nカテゴリ: " + escHtml(d.detected_category) : ""}${d.recommended_platform ? "\n" + escHtml(d.recommended_platform) : ""}</div>
+      </div>
+    </div>
+
+    <!-- 高額警告 -->
+    ${d.high_value_warning ? `<div class="high-warn">
+      <div class="hw-title">⚠ 高額の可能性あり</div>
+      <div class="hw-body">${escHtml(d.high_value_warning)}</div>
+    </div>` : ""}
+
+    <!-- 読み取り情報 -->
+    ${infoChips}
+
+    <!-- 買い手訴求ポイント -->
+    ${d.buyer_appeal_points ? `<div class="appeal-card">
+      <div class="ac-title">買い手が刺さるポイント</div>
+      <div class="ac-body">${escHtml(d.buyer_appeal_points)}</div>
+    </div>` : ""}
+
+    <!-- トレカ単体相場 -->
+    ${d.card_breakdown && d.card_breakdown !== "null" ? `<div class="card-purple">
+      <div class="cp-title">カード単体相場・まとめ比較</div>
+      <div class="cp-body">${escHtml(d.card_breakdown)}</div>
+    </div>` : ""}
+
+    <!-- 価格 -->
+    <div class="card">
+      <div class="card-label">推奨価格</div>
+      <div class="price-row">
+        <div class="price-box">
+          <div class="price-label">メルカリ</div>
+          <div class="price-val">&yen;${num(d.mercari_price)}</div>
+        </div>
+        <div class="price-box">
+          <div class="price-label">ヤフオク 開始</div>
+          <div class="price-val">&yen;${num(d.yahoo_start_price)}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 相場調査 -->
+    <div class="card">
+      <div class="card-label">相場・市場背景</div>
+      <div class="info-text">${escHtml(d.market_research || "—")}</div>
+    </div>
+
+    <!-- 出品文（共通本文） -->
+    <div class="card">
+      <div class="card-label">出品文</div>
+      <div class="listing-text" id="bodyText">${escHtml(bodyText)}</div>
+    </div>
+
+    <!-- メルカリ -->
+    <div class="card">
+      <div class="card-label">メルカリ用（タイトル＋本文＋タグ）</div>
+      <div class="listing-text" id="mercariText">${escHtml(mercariText)}</div>
+      <button class="copy-btn" id="copyM" onclick="copyText('mercariText','copyM','コピー（メルカリ）')">コピー（メルカリ）</button>
+    </div>
+
+    <!-- ヤフオク -->
+    <div class="card">
+      <div class="card-label">ヤフオク用（タイトル＋本文）</div>
+      <div class="listing-text" id="yahooText">${escHtml(yahooText)}</div>
+      <button class="copy-btn" id="copyY" onclick="copyText('yahooText','copyY','コピー（ヤフオク）')">コピー（ヤフオク）</button>
+    </div>
+
+    <!-- アドバイス -->
+    ${d.profit_tips ? `<div class="card">
+      <div class="card-label">出品のコツ</div>
+      <div class="info-text">${escHtml(d.profit_tips)}</div>
+    </div>` : ""}
+  `;
+
+  area.scrollIntoView({ behavior: "smooth" });
+}
+
+// ── ユーティリティ ──
+function labelFor(k) {
+  return {
+    model_number:"型番", brand:"ブランド", price_tag:"タグ価格",
+    color:"カラー", size:"サイズ", condition_from_image:"状態",
+    serial_number:"S/N", manufacture_date:"製造年", accessories:"付属品",
+    lego_set_number:"セット番号", lego_theme:"テーマ",
+    lego_minifigs:"ミニフィグ", lego_completeness:"完品度", lego_box_manual:"箱/説明書",
+    card_names:"カード名", rarity:"レアリティ", set_name:"セット名", special_marks:"特記",
+  }[k] || k;
+}
+
+function copyText(textId, btnId, label) {
+  const text = document.getElementById(textId).textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById(btnId);
+    btn.textContent = "コピーしました！";
+    btn.classList.add("copied");
+    setTimeout(() => { btn.textContent = label; btn.classList.remove("copied"); }, 2000);
+  });
+}
+
+function num(n) { return n ? Number(n).toLocaleString() : "—"; }
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+</script>
+</body>
+</html>
