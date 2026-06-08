@@ -1,6 +1,6 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -115,18 +115,18 @@ ${isCard ? "5. 各カード単体相場 → 合計 → まとめ売り比較\n" 
   const parts = [...imageParts, { text: userPrompt }];
 
   try {
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash-latest",
-      systemInstruction,
-      tools: [{ googleSearch: {} }],
-      generationConfig: {
+    const result = await genAI.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: [{ role: "user", parts }],
+      config: {
+        systemInstruction,
+        tools: [{ googleSearch: {} }],
         maxOutputTokens: isQuick ? 1024 : 4096,
         temperature: 0.7,
       },
     });
 
-    const result = await model.generateContent(parts);
-    const text = result.response.text();
+    const text = result.text;
 
     // JSON抽出（前後に説明文がついていても対応）
     let parsed;
@@ -142,9 +142,7 @@ ${isCard ? "5. 各カード単体相場 → 合計 → まとめ売り比較\n" 
       parsed = { raw: text };
     }
 
-    // 使用量（Gemini は token count をレスポンスに含む）
-    const usage = result.response.usageMetadata || null;
-
+    const usage = result.usageMetadata || null;
     return res.status(200).json({ ...parsed, _usage: usage });
   } catch (err) {
     console.error("Gemini error:", err.status, err.message);
