@@ -188,7 +188,15 @@ JSONのみ返すこと（コードブロック不要）：
         continue;
       }
       console.error(err);
-      return res.status(500).json({ error: err.message });
+      const msg = err.message || "";
+      const friendly = msg.includes("credit balance is too low")
+        ? "APIクレジット残高が不足しています。console.anthropic.com で残高を追加してください。"
+        : msg.includes("rate") || err.status === 429
+        ? "リクエストが多すぎます。少し待ってから再試行してください。"
+        : msg.includes("401") || msg.includes("authentication")
+        ? "APIキーが無効です。Vercelの環境変数を確認してください。"
+        : msg;
+      return res.status(500).json({ error: friendly });
     }
   }
 
