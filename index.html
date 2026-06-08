@@ -263,9 +263,6 @@ textarea:focus, input:focus { border-color: var(--accent); }
   animation: spin 0.7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-.loading-steps { display: flex; flex-direction: column; gap: 8px; text-align: center; }
-.lstep { font-size: 0.82rem; color: var(--muted); transition: color 0.3s; }
-.lstep.active { color: #93c5fd; font-weight: 600; }
 
 /* ── 結果エリア ── */
 .result-section { display: flex; flex-direction: column; gap: 12px; }
@@ -504,11 +501,6 @@ textarea:focus, input:focus { border-color: var(--accent); }
 <!-- ローディング -->
 <div class="loading-overlay" id="loadingOverlay">
   <div class="spinner-ring"></div>
-  <div class="loading-steps">
-    <div class="lstep active" id="ls1">写真を送信・読み取り中...</div>
-    <div class="lstep" id="ls2">相場をウェブ検索中...</div>
-    <div class="lstep" id="ls3">出品文を生成中...</div>
-  </div>
 </div>
 
 <!-- 固定ボタン -->
@@ -663,16 +655,6 @@ async function analyze(mode = "full") {
   const overlay = document.getElementById("loadingOverlay");
   overlay.classList.add("show");
 
-  // ステップアニメーション
-  const steps = ["ls1","ls2","ls3"];
-  let si = 0;
-  document.getElementById(steps[0]).classList.add("active");
-  const timer = setInterval(() => {
-    document.getElementById(steps[si]).classList.remove("active");
-    si = Math.min(si + 1, 2);
-    document.getElementById(steps[si]).classList.add("active");
-  }, 9000);
-
   try {
     const res = await fetch("/api/analyze", {
       method: "POST",
@@ -695,8 +677,6 @@ async function analyze(mode = "full") {
     area.innerHTML = `<div class="error-card">エラー: ${escHtml(e.message)}</div>`;
     area.scrollIntoView({ behavior: "smooth" });
   } finally {
-    clearInterval(timer);
-    steps.forEach(s => document.getElementById(s).classList.remove("active"));
     overlay.classList.remove("show");
     document.getElementById("quickBtn").disabled = false;
     document.getElementById("fullBtn").disabled = false;
