@@ -694,7 +694,38 @@ function renderResult(d) {
     return;
   }
 
-  // ── 推奨の場合 ──
+  // ── クイックモード（相場チェックのみ）──
+  if (d.mode === "quick") {
+    area.innerHTML = `
+      <div class="verdict-banner go">
+        <div class="verdict-icon">✅</div>
+        <div>
+          <div class="verdict-title">出品を推奨</div>
+          <div class="verdict-body">${escHtml(d.product_name || "")}${d.detected_category ? "\nカテゴリ: " + escHtml(d.detected_category) : ""}${d.recommended_platform ? "\n" + escHtml(d.recommended_platform) : ""}</div>
+        </div>
+      </div>
+      ${d.high_value_warning ? `<div class="high-warn"><div class="hw-title">⚠ 高額の可能性あり</div><div class="hw-body">${escHtml(d.high_value_warning)}</div></div>` : ""}
+      ${infoChips}
+      ${d.buyer_appeal_points ? `<div class="appeal-card"><div class="ac-title">買い手が刺さるポイント</div><div class="ac-body">${escHtml(d.buyer_appeal_points)}</div></div>` : ""}
+      <div class="card">
+        <div class="card-label">推奨価格</div>
+        <div class="price-row">
+          <div class="price-box"><div class="price-label">メルカリ</div><div class="price-val">&yen;${num(d.mercari_price)}</div></div>
+          <div class="price-box"><div class="price-label">ヤフオク 開始</div><div class="price-val">&yen;${num(d.yahoo_start_price)}</div></div>
+        </div>
+      </div>
+      <div class="card"><div class="card-label">相場・市場背景</div><div class="info-text">${escHtml(d.market_research || "—")}</div></div>
+      ${d.profit_tips ? `<div class="card"><div class="card-label">アドバイス</div><div class="info-text">${escHtml(d.profit_tips)}</div></div>` : ""}
+      <button class="analyze-btn" onclick="analyze('full')" style="margin-top:4px;font-size:0.9rem">
+        出品文まで作る →
+      </button>
+    `;
+    area.scrollIntoView({ behavior: "smooth" });
+    document.getElementById("clearBtn").style.display = "block";
+    return;
+  }
+
+  // ── フルモード（出品文まで）──
   const bodyText    = d.description || "";
   const mercariText = `${d.mercari_title || ""}\n\n${bodyText}\n\n#${(d.product_name || "").replace(/\s+/g,"")}`;
   const yahooText   = `${d.yahoo_title  || ""}\n\n${bodyText}`;
@@ -812,6 +843,8 @@ function clearAll() {
   document.getElementById("resultArea").style.display = "none";
   document.getElementById("resultArea").innerHTML = "";
   document.getElementById("clearBtn").style.display = "none";
+  document.getElementById("quickBtn").disabled = false;
+  document.getElementById("fullBtn").disabled = false;
   document.querySelectorAll("#categoryRow .chip").forEach(c => c.classList.remove("active"));
   document.querySelector('#categoryRow .chip[data-val="auto"]').classList.add("active");
   selectedCategory = "auto";
